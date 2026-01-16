@@ -64,7 +64,7 @@ The frontend interface is developed using HTML, CSS, and JavaScript, while the b
 4.Results are sent back and displayed in the UI
 
 ## 📦 Installation & Setup
-# 1️⃣ Clone the Repository
+1️⃣ Clone the Repository
 ```text
 git clone https://github.com/wW3B/Face-Recognition-Web-Application.git
 ```
