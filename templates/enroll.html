@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>Enroll Face | Face Attendance</title>
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
+
+  <style>
+    body {
+      background: #0f172a;
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .navbar-brand {
+      font-weight: 700;
+      letter-spacing: .03em;
+    }
+    .card {
+      border-radius: 18px;
+      border: 1px solid rgba(148,163,184,.25);
+      background: radial-gradient(circle at top left, #1f2937 0, #020617 45%, #000 100%);
+      box-shadow: 0 25px 60px rgba(15,23,42,.8);
+    }
+    a { text-decoration: none; }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark border-bottom border-secondary border-opacity-25">
+    <div class="container py-2">
+      <span class="navbar-brand d-flex align-items-center gap-2">
+        <span class="rounded-circle bg-info d-inline-block" style="width:10px;height:10px;"></span>
+        Enroll New Face
+      </span>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-light">กลับหน้ากล้องสด</a>
+        <a href="{{ url_for('logs') }}" class="btn btn-sm btn-warning text-dark">ประวัติการเช็คชื่อ</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="row g-4 justify-content-center">
+      <div class="col-lg-7">
+        <div class="card p-3 p-md-4">
+          <h1 class="h4 mb-3 text-light">ลงทะเบียนใบหน้าใหม่</h1>
+          <p class="small text-secondary mb-3">
+            1) เปิดกล้อง &nbsp; 2) พิมพ์ชื่อ/รหัสนักศึกษา &nbsp; 3) กด “ถ่ายและบันทึก”
+          </p>
+
+          <div class="mb-3">
+            <label class="form-label small text-secondary">ชื่อที่ต้องการบันทึก</label>
+            <input id="nameInput" type="text" class="form-control form-control-sm"
+                   placeholder="เช่น 65012345 หรือ tle">
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <video id="video" autoplay playsinline
+                     class="w-100 rounded-3 border border-secondary border-opacity-50"></video>
+            </div>
+            <div class="col-md-6">
+              <canvas id="canvas"
+                      class="w-100 rounded-3 border border-secondary border-opacity-25"></canvas>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-3">
+            <button id="captureBtn" class="btn btn-primary btn-sm">
+              ถ่ายและบันทึกใบหน้า
+            </button>
+          </div>
+
+          <div id="status" class="mt-3 small text-info"></div>
+          <hr class="mt-4 mb-3">
+
+<h5 class="text-light mb-2">รายชื่อที่ลงทะเบียนแล้ว</h5>
+<p class="text-secondary small mb-2">
+  คลิกปุ่ม <span class="badge bg-danger">ลบ</span> เพื่อลบใบหน้าคนนั้นออกจากระบบ
+</p>
+
+<div id="faceList" class="list-group list-group-flush bg-transparent">
+  <!-- รายชื่อจะถูก JavaScript เติมให้ -->
+</div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video   = document.getElementById("video");
+    const canvas  = document.getElementById("canvas");
+    const ctx     = canvas.getContext("2d");
+    const captureBtn = document.getElementById("captureBtn");
+    const statusEl   = document.getElementById("status");
+    const nameInput  = document.getElementById("nameInput");
+
+    // ขอสิทธิ์เปิดกล้อง
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error(err);
+        statusEl.textContent = "ไม่สามารถเปิดกล้องได้: " + err.message;
+      });
+
+    captureBtn.addEventListener("click", async () => {
+      const name = nameInput.value.trim();
+      if (!name) {
+        statusEl.textContent = "⚠️ กรุณากรอกชื่อก่อน";
+        statusEl.className = "mt-3 small text-warning";
+        return;
+      }
+
+      // วาดเฟรมจาก video ลง canvas
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL("image/png"); // base64
+
+      statusEl.textContent = "กำลังอัปโหลด...";
+      statusEl.className = "mt-3 small text-info";
+
+      try {
+        const res = await fetch("/api/enroll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name,
+            image: dataUrl
+          })
+        });
+
+        const json = await res.json();
+
+        if (json.ok) {
+          statusEl.textContent = "✅ ลงทะเบียนสำเร็จ: " + json.message;
+          statusEl.className = "mt-3 small text-success";
+        } else {
+          statusEl.textContent = "❌ ลงทะเบียนไม่สำเร็จ: " + (json.message || "");
+          statusEl.className = "mt-3 small text-danger";
+        }
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "เกิดข้อผิดพลาดในการส่งข้อมูล";
+        statusEl.className = "mt-3 small text-danger";
+      }
+    });
+    // โหลดรายชื่อจาก backend แล้วแสดงในหน้าเว็บ
+async function loadFaceList() {
+    const listEl = document.getElementById("faceList");
+    listEl.innerHTML = '<div class="text-secondary small">กำลังโหลดรายชื่อ...</div>';
+
+    try {
+        const res = await fetch("/api/list_faces");
+        const data = await res.json();
+
+        if (!data.ok) {
+            listEl.innerHTML = '<div class="text-danger small">โหลดรายชื่อไม่สำเร็จ</div>';
+            return;
+        }
+
+        const names = data.names;
+
+        if (names.length === 0) {
+            listEl.innerHTML = '<div class="text-secondary small">ยังไม่มีการลงทะเบียนใบหน้า</div>';
+            return;
+        }
+
+        listEl.innerHTML = "";
+        names.forEach(name => {
+            const item = document.createElement("div");
+            item.className =
+                "list-group-item d-flex justify-content-between align-items-center bg-transparent text-light border-secondary border-opacity-25";
+
+            const label = document.createElement("span");
+            label.textContent = name;
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "btn btn-sm btn-outline-danger";
+            delBtn.textContent = "ลบ";
+            delBtn.onclick = () => deleteFace(name);
+
+            item.appendChild(label);
+            item.appendChild(delBtn);
+            listEl.appendChild(item);
+        });
+    } catch (err) {
+        console.error(err);
+        listEl.innerHTML = '<div class="text-danger small">เกิดข้อผิดพลาดในการโหลดรายชื่อ</div>';
+    }
+}
+
+async function deleteFace(name) {
+    if (!confirm(`ต้องการลบ "${name}" ออกจากระบบหรือไม่?`)) return;
+
+    const statusEl = document.getElementById("status");
+    statusEl.classList.remove("text-success", "text-danger");
+    statusEl.classList.add("text-warning");
+    statusEl.textContent = `กำลังลบ "${name}" ...`;
+
+    try {
+        const res = await fetch("/api/delete_face", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name })
+        });
+
+        const data = await res.json();
+
+        if (data.ok) {
+            statusEl.classList.remove("text-warning", "text-danger");
+            statusEl.classList.add("text-success");
+            statusEl.textContent = data.message;
+
+            loadFaceList();
+        } else {
+            statusEl.classList.remove("text-warning", "text-success");
+            statusEl.classList.add("text-danger");
+            statusEl.textContent = data.message;
+        }
+    } catch (err) {
+        console.error(err);
+        statusEl.classList.remove("text-warning", "text-success");
+        statusEl.classList.add("text-danger");
+        statusEl.textContent = "เกิดข้อผิดพลาด";
+    }
+}
+
+window.addEventListener("load", loadFaceList);
+
+  </script>
+
+</body>
+</html>
